@@ -1,0 +1,53 @@
+#include <iostream>
+#include <memory>
+#include <vector>
+#include <cstring>
+
+enum TokenKind {
+	TK_RESERVED,
+	TK_NUM,
+	TK_EOF,
+};
+
+struct Token {
+	TokenKind kind;
+	Token *next;
+	int val;
+	char *str;
+	int len;
+
+	Token() = default;
+};
+
+extern Token *token;
+
+Token *tokenize(char *p);
+
+
+enum NodeKind {
+	ND_ADD,
+	ND_SUB,
+	ND_MUL,
+	ND_DIV,
+	ND_EQ,
+	ND_NE,
+	ND_LT,
+	ND_LE,
+	ND_NUM,
+};
+
+struct Node {
+	NodeKind kind;
+	Node *lhs;
+	Node *rhs;
+	int val;
+
+	Node(int v) : kind(ND_NUM), val(v) {}
+
+	Node(NodeKind k, Node *l, Node *r) : kind(k), lhs(l), rhs(r) {}
+};
+
+Node *expr();
+
+		
+void gen(Node *node);

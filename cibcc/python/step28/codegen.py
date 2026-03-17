@@ -1,0 +1,267 @@
+from r_type import *
+
+labelseq = 0
+argreg8 = ['rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9']
+argreg1 = ['dil', 'sil', 'dl', 'cl', 'r8b', 'r9b']
+def gen(node):
+	global labelseq
+	global argreg
+	if node.kind == 'NULL':
+		return
+	elif node.kind == 'NUM':
+		print(f"  push {node.val}")
+		return
+	elif node.kind == 'EXPR_STMT':
+		gen(node.lhs)
+		print("  add rsp, 8")
+		return
+	elif node.kind == 'VAR':
+		gen_addr(node)
+		if node.ty.kind != 'ARRAY':
+			load(node.ty)
+		return
+	elif node.kind == 'ASSIGN':
+		gen_lval(node.lhs)
+		gen(node.rhs)
+		store(node.ty)
+		return
+	elif node.kind == 'ADDR':
+		gen_addr(node.lhs)
+		return
+	elif node.kind == 'DEREF':
+		gen(node.lhs)
+		if node.ty.kind != 'ARRAY':
+			load(node.ty)
+		return
+	elif node.kind == 'IF':
+		seq = labelseq
+		labelseq += 1
+		if node.els:
+			gen(node.cond)
+			print("  pop rax")
+			print("  cmp rax, 0")
+			print(f"  je .Lelse{seq}")
+			gen(node.then)
+			print(f"  jmp .Lend{seq}")
+			print(f".Lelse{seq}:")
+			gen(node.els)
+			print(f".Lend{seq}:")
+		else:
+			gen(node.cond)
+			print("  pop rax")
+			print("  cmp rax, 0")
+			print(f"  je .Lend{seq}")
+			gen(node.then)
+			print(f".Lend{seq}:")
+		return
+	elif node.kind == 'WHILE':
+		seq = labelseq
+		labelseq += 1
+		print(f".Lbegin{seq}:")
+		gen(node.cond)
+		print("  pop rax")
+		print("  cmp rax, 0")
+		print(f"  je .Lend{seq}")
+		gen(node.then)
+		print(f"  jmp .Lbegin{seq}")
+		print(f".Lend{seq}:")
+		return
+	elif node.kind == 'FOR':
+		seq = labelseq
+		labelseq += 1
+		if node.init:
+			gen(node.init)
+		print(f".Lbegin{seq}:")
+		if node.cond:
+			gen(node.cond)
+			print("  pop rax")
+			print("  cmp rax, 0")
+			print(f"  je .Lend{seq}")
+		gen(node.then)
+		if node.inc:
+			gen(node.inc)
+		print(f"  jmp .Lbegin{seq}")
+		print(f".Lend{seq}:")
+		return
+	elif (node.kind == 'BLOCK' or node.kind == 'STMT_EXPR'):
+		n = node.body
+		while n:
+			if node.kind == 'STMT_EXPR' and n.next is None:
+				if n.kind == 'EXPR_STMT':
+					gen(n.lhs)
+				else:
+					gen(n)
+			else:
+				gen(n)
+			n = n.next
+		return
+	elif node.kind == 'FUNCALL':
+		nargs = 0
+		arg = node.args
+		while arg:
+			gen(arg)
+			nargs += 1
+			arg = arg.next
+		for i in range(nargs - 1, -1, -1):
+			print(f"  pop {argreg8[i]}")
+		seq = labelseq
+		labelseq += 1
+		print("  mov rax, rsp")
+		print("  and rax, 15")
+		print(f"  jnz .Lcall{seq}")
+		print("  mov rax, 0")
+		print(f"  call {node.funcname}")
+		print(f"  jmp .Lend{seq}")
+		print(f".Lcall{seq}:")
+		print("  sub rsp, 8")
+		print("  mov rax, 0")
+		print(f"  call {node.funcname}")
+		print("  add rsp, 8")
+		print(f".Lend{seq}:")
+		print("  push rax")
+		return
+	elif node.kind == 'RETURN':
+		if node.lhs:
+			gen(node.lhs)
+			print("  pop rax")
+		print(f"  jmp .Lreturn.{current_fn_name}")
+		return
+
+	gen(node.lhs)
+	gen(node.rhs)
+
+	print("  pop rdi")
+	print("  pop rax")
+
+	if node.kind == 'ADD':
+		if node.ty.base:
+			print(f"  imul rdi, {size_of(node.ty.base)}")
+		print("  add rax, rdi")
+	elif node.kind == 'SUB':
+		if node.ty.base:
+			print(f"  imul rdi, {size_of(node.ty.base)}")
+		print("  sub rax, rdi")
+	elif node.kind == 'MUL':
+		print("  imul rax, rdi")
+	elif node.kind == 'DIV':
+		print("  cqo")
+		print("  idiv rdi")
+	elif node.kind == 'EQ':
+		print("  cmp rax, rdi")
+		print("  sete al")
+		print("  movzb rax, al")
+	elif node.kind == 'NE':
+		print("  cmp rax, rdi")
+		print("  setne al")
+		print("  movzb rax, al")
+	elif node.kind == 'LT':
+		print("  cmp rax, rdi")
+		print("  setl al")
+		print("  movzb rax, al")
+	elif node.kind == 'LE':
+		print("  cmp rax, rdi")
+		print("  setle al")
+		print("  movzb rax, al")
+
+	print("  push rax")
+
+def codegen(prog):
+	print(".intel_syntax noprefix")
+	emit_data(prog)
+	emit_text(prog)
+
+def emit_data(prog):
+	print(".data")
+	vl = prog.globals
+	while vl:
+		var = vl.var
+		print(f"{var.name}:")
+		if not var.contents:
+			print(f"  .zero {size_of(var.ty)}")
+		else:
+			i = 0;
+			while i < var.cont_len:
+				v = var.contents[i]
+				byte_bal = ord(v) if isinstance(v, str) else v
+				print(f"  .byte {byte_bal}")
+				i += 1
+
+		vl = vl.next
+
+current_fn_name = ""
+def emit_text(prog):
+	global current_fn_name
+	print(".text")
+	fn = prog.fns
+	while fn:
+		print(f".global {fn.name}")
+		print(f"{fn.name}:")
+		current_fn_name = fn.name
+
+		print("  push rbp")
+		print("  mov rbp, rsp")
+		print(f"  sub rsp, {fn.stack_size}")
+
+		i = 0
+		vl = fn.params
+		while vl:
+			var = vl.var
+			load_arg(var, i)
+			i += 1
+			vl = vl.next
+
+		node = fn.node
+		while node:
+			gen(node)
+			node = node.next
+
+		print(f".Lreturn.{current_fn_name}:")
+		print("  mov rsp, rbp")
+		print("  pop rbp")
+		print("  ret")
+
+		fn = fn.next
+
+def gen_addr(node):
+	if node.kind == 'VAR':
+		var = node.var
+		if var.is_local:
+			print(f"  lea rax, [rbp-{var.offset}]")
+			print("  push rax")
+		else:
+			print(f"  push offset {var.name}")
+		return
+	elif node.kind == 'DEREF':
+		gen(node.lhs)
+		return
+	raise Exception("not an lvalue")  
+
+def load(ty):
+	print("  pop rax")
+	if size_of(ty) == 1:
+		print("  movsx rax, byte ptr [rax]")
+	else:
+		print("  mov rax, [rax]")
+	print("  push rax")
+
+def store(ty):
+	print("  pop rdi")
+	print("  pop rax")
+	if size_of(ty) == 1:
+		print("  mov [rax], dil")
+	else:
+		print("  mov [rax], rdi")
+	print("  push rdi")
+
+def gen_lval(node):
+	if node.ty.kind == 'ARRAY':
+		print("not an lvalue")
+	gen_addr(node)
+
+def load_arg(var, idx):
+	sz = size_of(var.ty)
+	if sz == 1:
+		print(f"  mov [rbp-{var.offset}], {argreg1[idx]}")
+	else:
+		print(f"  mov [rbp-{var.offset}], {argreg8[idx]}")
+

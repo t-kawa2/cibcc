@@ -1,0 +1,304 @@
+use std::fmt;
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum TokenKind {
+	Reserved(String),
+	Ident(String),
+	Num(i64),
+	Str,
+	Eof,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Token {
+	pub kind: TokenKind,
+	pub input: String,
+	pub contents: String,
+	pub cont_len: i64,
+}
+
+impl fmt::Display for Token {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "{}", self.input)
+	}
+}
+
+pub fn tokenize(input: &str) -> Vec<Token> {
+	let mut tokens = Vec::new();
+	let mut chars = input.chars().peekable();
+
+	while let Some(c) = chars.next() {
+
+		if c.is_whitespace() {
+			continue;
+		}
+		match c {
+
+			'a'..='z' | 'A'..='Z' | '_' => {
+				let mut identifier = String::new();
+				identifier.push(c);
+				while let Some(&next_c) = chars.peek() {
+					if next_c.is_alphanumeric() || next_c == '_' {
+						identifier.push(chars.next().unwrap());
+					} else {
+						break;
+					}
+				}
+
+				if identifier == "return" {
+					tokens.push(Token{
+						kind: TokenKind::Reserved(identifier.clone()),
+						input: identifier,
+						contents: "".to_string(),
+						cont_len: 0,
+					});
+				} else if identifier == "if" {
+					tokens.push(Token{
+						kind: TokenKind::Reserved(identifier.clone()),
+						input: identifier,
+						contents: "".to_string(),
+						cont_len: 0,
+					});
+				} else if identifier == "else" {
+					tokens.push(Token{
+						kind: TokenKind::Reserved(identifier.clone()),
+						input: identifier,
+						contents: "".to_string(),
+						cont_len: 0,
+					});
+				} else if identifier == "while" {
+					tokens.push(Token{
+						kind: TokenKind::Reserved(identifier.clone()),
+						input: identifier,
+						contents: "".to_string(),
+						cont_len: 0,
+					});
+				} else if identifier == "for" {
+					tokens.push(Token{
+						kind: TokenKind::Reserved(identifier.clone()),
+						input: identifier,
+						contents: "".to_string(),
+						cont_len: 0,
+					});
+				} else if identifier == "int" {
+					tokens.push(Token{
+						kind: TokenKind::Reserved(identifier.clone()),
+						input: identifier,
+						contents: "".to_string(),
+						cont_len: 0,
+					});
+				} else if identifier == "sizeof" {
+					tokens.push(Token{
+						kind: TokenKind::Reserved(identifier.clone()),
+						input: identifier,
+						contents: "".to_string(),
+						cont_len: 0,
+					});
+				} else if identifier == "char" {
+					tokens.push(Token{
+						kind: TokenKind::Reserved(identifier.clone()),
+						input: identifier,
+						contents: "".to_string(),
+						cont_len: 0,
+					});
+				} else {
+					tokens.push(Token{
+						kind: TokenKind::Ident(identifier.clone()),
+						input: identifier,
+						contents: "".to_string(),
+						cont_len: 0,
+					});
+				}
+			}
+			'"' => {
+				let mut string_literal = String::new();
+				string_literal.push(c);
+				while let Some(&next_c) = chars.peek() {
+					if next_c == '\\' {
+						string_literal.push(chars.next().unwrap());
+						if let Some(esc_c) = chars.next() {
+							string_literal.push(esc_c);
+						}
+					} else if next_c != '"' {
+						string_literal.push(chars.next().unwrap());
+					} else {
+						string_literal.push(chars.next().unwrap());
+						break;
+					}
+				}
+				let mut contents = String::new();
+				let mut inner_chars = string_literal[1..string_literal.len()-1].chars().peekable();
+
+				while let Some(c) = inner_chars.next() {
+					if c == '\\' {
+						if let Some(next_c) = inner_chars.next() {
+							contents.push(get_escape_char(next_c));
+						}
+					} else {
+						contents.push(c);
+					}
+				}
+				contents.push('\0');
+
+				tokens.push(Token{
+					kind: TokenKind::Str,
+					input: string_literal,
+					contents: contents.clone(),
+					cont_len: contents.len() as i64,
+				});
+			}
+			'0'..='9' => {
+				let mut num_str = String::new();
+				num_str.push(c);
+				while let Some(&next_c) = chars.peek() {
+					if next_c.is_ascii_digit() {
+						num_str.push(chars.next().unwrap());
+					} else {
+						break;
+					}
+				}
+				let val = num_str.parse::<i64>().unwrap();
+				tokens.push(Token{
+					kind: TokenKind::Num(val),
+					input: num_str,
+					contents: "".to_string(),
+					cont_len: 0,
+				});
+			}
+			'+' | '-' | '*' | '(' | ')' | ';' | '{' | '}' | ',' | '&' |
+			'[' | ']' => {
+				tokens.push(Token{
+					kind: TokenKind::Reserved(c.to_string()),
+					input: c.to_string(),
+					contents: "".to_string(),
+					cont_len: 0,
+				});
+			}
+			'=' => {
+				if chars.peek() == Some(&'=') {
+					chars.next();
+					tokens.push(Token{
+						kind: TokenKind::Reserved("==".to_string()),
+						input: "==".into(),
+						contents: "".to_string(),
+						cont_len: 0,
+					});
+				} else {
+					tokens.push(Token{
+						kind: TokenKind::Reserved("=".to_string()),
+						input: "=".into(),
+						contents: "".to_string(),
+						cont_len: 0,
+					});
+				}
+			}
+			'!' => {
+				if chars.peek() == Some(&'=') {
+					chars.next();
+					tokens.push(Token{
+						kind: TokenKind::Reserved("!=".to_string()),
+						input: "!=".into(),
+						contents: "".to_string(),
+						cont_len: 0,
+					});
+				} else {
+					break;
+				}
+			}
+			'<' => {
+				if chars.peek() == Some(&'=') {
+					chars.next();
+					tokens.push(Token{
+						kind: TokenKind::Reserved("<=".to_string()),
+						input: "<=".into(),
+						contents: "".to_string(),
+						cont_len: 0,
+					});
+				} else {
+					tokens.push(Token{
+						kind: TokenKind::Reserved("<".to_string()),
+						input: "<".into(),
+						contents: "".to_string(),
+						cont_len: 0,
+					});
+				}
+			}
+			'>' => {
+				if chars.peek() == Some(&'=') {
+					chars.next();
+					tokens.push(Token{
+						kind: TokenKind::Reserved(">=".to_string()),
+						input: ">=".into(),
+						contents: "".to_string(),
+						cont_len: 0,
+					});
+				} else {
+					tokens.push(Token{
+						kind: TokenKind::Reserved(">".to_string()),
+						input: ">".into(),
+						contents: "".to_string(),
+						cont_len: 0,
+					});
+				}
+			}
+			'/' => {
+				if chars.peek() == Some(&'/') {
+					chars.next();
+					while let Some(&c) = chars.peek() {
+						if c == '\n' { break }
+						chars.next();
+					}
+					continue;
+				} else if chars.peek() == Some(&'*') {
+					chars.next();
+					loop {
+						match chars.next() {
+							Some('*') if chars.next() == Some('/') => {
+								chars.next();
+								break;
+							}
+							Some(_) => {
+							}
+							None => {
+								panic!("unclosed block comment");
+							}
+						}
+					}
+					continue;
+				} else {
+					tokens.push(Token{
+						kind: TokenKind::Reserved(c.to_string()),
+						input: c.to_string(),
+						contents: "".to_string(),
+						cont_len: 0,
+					});
+				}
+			}
+
+			_ => panic!("予期しないもじです: {}", c),
+		}
+	}
+	tokens.push(Token{
+		kind: TokenKind::Eof,
+		input: "".to_string(),
+		contents: "".to_string(),
+		cont_len: 0,
+	});
+	tokens
+}
+
+fn get_escape_char(c: char) -> char {
+	match c {
+		'a' => 7 as char,
+		'b' => 8 as char,
+		't' => '\t',
+		'n' => '\n',
+		'v' => 11 as char,
+		'f' => 12 as char,
+		'r' => '\r',
+		'e' => 27 as char,
+		'0' => '\0',
+		_ => c,
+	}
+}
+

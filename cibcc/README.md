@@ -30,6 +30,7 @@ make clean
 
 📚 References
 
-    chibicc by rui314
-    野良プログラマーのCS日記 (Guide followed for this project)
+    chibicc by rui314 (低レイヤを知りたい人のためのCコンパイラ作成入門 : Rui Ueyama<ruiu@cs.standard.edu> )
+
+    野良プログラマーのCS日記 chibiccを読む〜Cコンパイラコードリーディング〜ステップ０ : <https://jupiteroak.hatenablog.com/entry/2023/02/12/180000>  (Guide followed for this project)
 

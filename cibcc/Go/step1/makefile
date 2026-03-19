@@ -8,7 +8,7 @@ test:
 		./test.sh
 
 clean:
-		rm -f *.o tmp.s tmp
+		rm -f *.o tmp.s tmp cibcc
 
 .PHONY:	test clean
 
